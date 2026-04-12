@@ -11,6 +11,10 @@ try:
     pca = joblib.load("pca.joblib")
     kmeans_model = joblib.load("kmeans.joblib")
     columns = joblib.load("columns.joblib")   # saved training columns
+    
+    st.write(f"Loaded Scaler expects {scaler.n_features_in_} features.")
+    st.write(f"Loaded PCA expects {pca.n_features_in_} features.")
+    
 except FileNotFoundError:
     st.error("Required files not found. Ensure all .joblib files are present.")
     st.stop()
@@ -84,6 +88,7 @@ if uploaded_file is not None:
 
     # --- Scaling ---
     try:
+        st.write(f"Input data for scaler has {df_processed.shape[1]} features.")
         X_scaled = scaler.transform(df_processed)
     except Exception as e:
         st.error(f"Scaling error: {e}")
@@ -95,6 +100,7 @@ if uploaded_file is not None:
 
     # --- PCA ---
     try:
+        st.write(f"Input data for PCA has {X_imputed.shape[1]} features.")
         X_pca = pca.transform(X_imputed)
     except Exception as e:
         st.error(f"PCA error: {e}")
