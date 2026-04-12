@@ -41,8 +41,16 @@ if uploaded_file is not None:
     # --- Drop non-feature columns ---
     df_processed = df_uploaded.drop('Country', axis=1, errors='ignore').copy()
 
-    # --- Data Cleaning ---
-    for col in df_processed.columns:
+    # --- Data Cleaning and Column Alignment ---
+    original_feature_cols = columns
+
+    # Add any missing columns from original_feature_cols to df_processed, filled with NaN
+    for col in original_feature_cols:
+        if col not in df_processed.columns:
+            df_processed[col] = np.nan
+
+    # Now, iterate ONLY through original_feature_cols to clean and convert them
+    for col in original_feature_cols:
         if df_processed[col].dtype == 'object':
             temp = df_processed[col].astype(str)\
                 .str.replace('$', '', regex=False)\
@@ -53,24 +61,11 @@ if uploaded_file is not None:
                 df_processed[col] = pd.to_numeric(temp.str.replace('%', '', regex=False), errors='coerce') / 100
             else:
                 df_processed[col] = pd.to_numeric(temp, errors='coerce')
+        elif not pd.api.types.is_numeric_dtype(df_processed[col]):
+             df_processed[col] = pd.to_numeric(df_processed[col], errors='coerce')
 
-    # Keep only numeric columns
-    df_processed = df_processed.select_dtypes(include=np.number)
-
-    # --- Align with training columns ---
-    original_feature_cols = columns
-
-    # Add missing columns
-    for col in original_feature_cols:
-        if col not in df_processed.columns:
-            df_processed[col] = np.nan
-
-    # Remove extra columns & reorder
+    # Finally, select and reorder columns to perfectly match the training features
     df_processed = df_processed[original_feature_cols]
-
-    # --- Debug (optional, can remove later) ---
-    # st.write("Expected columns:", original_feature_cols)
-    # st.write("Input columns:", df_processed.columns.tolist())
 
     # --- Scaling ---
     try:
