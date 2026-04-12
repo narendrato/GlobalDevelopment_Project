@@ -34,20 +34,25 @@ if uploaded_file is not None:
 
     st.write("### Original Data")
     st.dataframe(df_uploaded.head())
+    st.write(f"Shape of uploaded data: {df_uploaded.shape}")
+    st.write(f"Columns of uploaded data: {df_uploaded.columns.tolist()}")
 
     # --- Save country names ---
     country_names = df_uploaded['Country'].copy() if 'Country' in df_uploaded.columns else None
 
     # --- Drop non-feature columns ---
     df_processed = df_uploaded.drop('Country', axis=1, errors='ignore').copy()
+    st.write(f"Shape after dropping Country: {df_processed.shape}")
 
     # --- Data Cleaning and Column Alignment ---
     original_feature_cols = columns
+    st.write(f"Expected original features (from columns.joblib): {len(original_feature_cols)} columns.")
 
     # Add any missing columns from original_feature_cols to df_processed, filled with NaN
     for col in original_feature_cols:
         if col not in df_processed.columns:
             df_processed[col] = np.nan
+    st.write(f"Shape after adding missing columns: {df_processed.shape}")
 
     # Now, iterate ONLY through original_feature_cols to clean and convert them
     for col in original_feature_cols:
@@ -66,6 +71,16 @@ if uploaded_file is not None:
 
     # Finally, select and reorder columns to perfectly match the training features
     df_processed = df_processed[original_feature_cols]
+
+    st.write(f"### Debugging Feature Alignment (Post-Processing):")
+    st.write(f"Shape of df_processed before scaling: {df_processed.shape}")
+    st.write(f"Columns of df_processed before scaling: {df_processed.columns.tolist()}")
+
+    # Critical check: Ensure the number of features matches what PCA expects
+    expected_features_count = len(original_feature_cols) # This should be 21
+    if df_processed.shape[1] != expected_features_count:
+        st.error(f"Feature count mismatch! Expected {expected_features_count} features but got {df_processed.shape[1]} after preprocessing.")
+        st.stop()
 
     # --- Scaling ---
     try:
