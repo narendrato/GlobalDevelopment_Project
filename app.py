@@ -69,11 +69,11 @@ if uploaded_file is not None:
     # Let's assume the order of columns after initial preprocessing and dropping correlated ones
     # is consistent with `scaler.n_features_in_`.
     # A more robust solution would involve saving the column names that were fed to the scaler.
-    
+
     # Create a dummy dataframe with the same columns as the training data to ensure consistent scaling
     # This is a workaround since original_training_columns was not explicitly saved.
     # We need to ensure `df_processed` has the same columns and order as the `df` that was used to train the scaler/pca.
-    
+
     # Reconstructing the training dataframe's column list (this is brittle for deployment)
     # In a real app, save `df.columns.tolist()` that went into `StandardScaler`
     # For now, let's use the columns that `scaler` expects, if available
@@ -88,7 +88,7 @@ if uploaded_file is not None:
         # If running as a standalone .py, 'df' might not exist, so a more robust method is needed.
         # Let's assume `original_training_df_cols` was saved.
         # For now, let's use the current `df`'s numeric columns before clustering columns were added.
-        
+
         # The `df` variable in the current notebook state contains clustering info, so we need to filter.
         # A better way would be to save `df.columns` _before_ adding cluster columns.
         # From the kernel state, 'df' has 'HC_Cluster', 'KMeans_Cluster', 'DBSCAN_Cluster', 'Cluster_Name'
@@ -100,7 +100,7 @@ if uploaded_file is not None:
         for col in original_feature_cols:
             if col not in df_processed.columns:
                 df_processed[col] = np.nan
-        
+
         # Reorder columns to match the training data
         df_processed = df_processed[original_feature_cols]
 
@@ -146,7 +146,7 @@ if uploaded_file is not None:
     ax.set_xlabel("PCA1")
     ax.set_ylabel("PCA2")
     ax.set_title("K-Means Clusters (PCA)")
-    
+
     # Create a legend
     handles, labels = scatter.legend_elements()
     unique_clusters = sorted(np.unique(clusters_uploaded))
