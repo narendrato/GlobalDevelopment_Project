@@ -3,20 +3,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import joblib
-from sklearn.impute import SimpleImputer
 
-# --- Load the models ---
+# --- Load models ---
 try:
     scaler = joblib.load("scaler.joblib")
     pca = joblib.load("pca.joblib")
     kmeans_model = joblib.load("kmeans.joblib")
-    columns = joblib.load("columns.joblib")   # saved training columns
-    
-    st.write(f"Loaded Scaler expects {scaler.n_features_in_} features.")
-    st.write(f"Loaded PCA expects {pca.n_features_in_} features.")
-    
+    columns = joblib.load("columns.joblib")  # correct training columns
 except FileNotFoundError:
-    st.error("Required files not found. Ensure all .joblib files are present.")
+    st.error("Missing model files. Ensure all .joblib files are uploaded.")
     st.stop()
 
 st.title("Global Development Clustering App")
@@ -28,92 +23,95 @@ if uploaded_file is not None:
 
     # --- Read file ---
     try:
-        if uploaded_file.name.endswith('.csv'):
+        if uploaded_file.name.endswith(".csv"):
             df_uploaded = pd.read_csv(uploaded_file)
         else:
-            df_uploaded = pd.read_excel(uploaded_file, engine='openpyxl')
+            df_uploaded = pd.read_excel(uploaded_file, engine="openpyxl")
     except Exception as e:
-        st.error(f"Error reading file: {e}")
+        st.error(f"File reading error: {e}")
         st.stop()
 
     st.write("### Original Data")
     st.dataframe(df_uploaded.head())
-    st.write(f"Shape of uploaded data: {df_uploaded.shape}")
-    st.write(f"Columns of uploaded data: {df_uploaded.columns.tolist()}")
 
-    # --- Save country names ---
+    # --- Save Country column ---
     country_names = df_uploaded['Country'].copy() if 'Country' in df_uploaded.columns else None
 
-    # --- Drop non-feature columns ---
+    # --- Drop non-feature column ---
     df_processed = df_uploaded.drop('Country', axis=1, errors='ignore').copy()
-    st.write(f"Shape after dropping Country: {df_processed.shape}")
 
-    # --- Data Cleaning and Column Alignment ---
+    # =========================================================
+    # ✅ STEP 1: ALIGN COLUMNS FIRST (VERY IMPORTANT)
+    # =========================================================
     original_feature_cols = columns
-    st.write(f"Expected original features (from columns.joblib): {len(original_feature_cols)} columns.")
 
-    # Add any missing columns from original_feature_cols to df_processed, filled with NaN
+    # Add missing columns
     for col in original_feature_cols:
         if col not in df_processed.columns:
             df_processed[col] = np.nan
-    st.write(f"Shape after adding missing columns: {df_processed.shape}")
 
-    # Now, iterate ONLY through original_feature_cols to clean and convert them
-    for col in original_feature_cols:
-        if df_processed[col].dtype == 'object':
-            temp = df_processed[col].astype(str)\
-                .str.replace('$', '', regex=False)\
-                .str.replace(',', '', regex=False)\
-                .str.strip()
-
-            if temp.str.contains('%').any():
-                df_processed[col] = pd.to_numeric(temp.str.replace('%', '', regex=False), errors='coerce') / 100
-            else:
-                df_processed[col] = pd.to_numeric(temp, errors='coerce')
-        elif not pd.api.types.is_numeric_dtype(df_processed[col]):
-             df_processed[col] = pd.to_numeric(df_processed[col], errors='coerce')
-
-    # Finally, select and reorder columns to perfectly match the training features
+    # Remove extra columns & reorder
     df_processed = df_processed[original_feature_cols]
 
-    st.write(f"### Debugging Feature Alignment (Post-Processing):")
-    st.write(f"Shape of df_processed before scaling: {df_processed.shape}")
-    st.write(f"Columns of df_processed before scaling: {df_processed.columns.tolist()}")
+    # =========================================================
+    # ✅ STEP 2: CLEAN DATA (AFTER ALIGNMENT)
+    # =========================================================
+    for col in df_processed.columns:
+        temp = df_processed[col].astype(str)\
+            .str.replace('$', '', regex=False)\
+            .str.replace(',', '', regex=False)\
+            .str.strip()
 
-    # Critical check: Ensure the number of features matches what PCA expects
-    expected_features_count = len(original_feature_cols) # This should be 21
-    if df_processed.shape[1] != expected_features_count:
-        st.error(f"Feature count mismatch! Expected {expected_features_count} features but got {df_processed.shape[1]} after preprocessing.")
-        st.stop()
+        if temp.str.contains('%').any():
+            df_processed[col] = pd.to_numeric(
+                temp.str.replace('%', '', regex=False),
+                errors='coerce'
+            ) / 100
+        else:
+            df_processed[col] = pd.to_numeric(temp, errors='coerce')
 
-    # --- Scaling ---
+    # =========================================================
+    # ✅ DEBUG (OPTIONAL - REMOVE LATER)
+    # =========================================================
+    st.write("Expected features:", len(original_feature_cols))
+    st.write("Input shape:", df_processed.shape)
+
+    # =========================================================
+    # ✅ STEP 3: SCALING
+    # =========================================================
     try:
-        st.write(f"Input data for scaler has {df_processed.shape[1]} features.")
         X_scaled = scaler.transform(df_processed)
     except Exception as e:
         st.error(f"Scaling error: {e}")
         st.stop()
 
-    # --- Imputation ---
+    # =========================================================
+    # ✅ STEP 4: HANDLE MISSING VALUES (SAFE)
+    # =========================================================
+    # NOTE: Ideally load saved imputer
+    from sklearn.impute import SimpleImputer
     imputer = SimpleImputer(strategy='mean')
     X_imputed = imputer.fit_transform(X_scaled)
 
-    # --- PCA ---
+    # =========================================================
+    # ✅ STEP 5: PCA TRANSFORMATION
+    # =========================================================
     try:
-        st.write(f"Input data for PCA has {X_imputed.shape[1]} features.")
         X_pca = pca.transform(X_imputed)
     except Exception as e:
         st.error(f"PCA error: {e}")
         st.stop()
 
-    # --- Prediction ---
+    # =========================================================
+    # ✅ STEP 6: PREDICTION
+    # =========================================================
     try:
         clusters = kmeans_model.predict(X_pca)
     except Exception as e:
         st.error(f"Prediction error: {e}")
         st.stop()
 
-    # --- Map cluster names ---
+    # --- Cluster mapping ---
     cluster_names = {
         0: "Developed",
         1: "Developing",
@@ -126,14 +124,19 @@ if uploaded_file is not None:
     if country_names is not None:
         df_uploaded['Country'] = country_names
 
-    # --- Show results ---
+    # =========================================================
+    # ✅ RESULTS
+    # =========================================================
     st.write("### Cluster Results")
+
     if 'Country' in df_uploaded.columns:
         st.dataframe(df_uploaded[['Country', 'Cluster_Name']])
     else:
         st.dataframe(df_uploaded[['Cluster_Name']])
 
-    # --- Visualization ---
+    # =========================================================
+    # ✅ VISUALIZATION
+    # =========================================================
     st.write("### Cluster Visualization")
 
     fig, ax = plt.subplots()
@@ -143,7 +146,6 @@ if uploaded_file is not None:
     ax.set_ylabel("PCA2")
     ax.set_title("K-Means Clusters")
 
-    # Legend
     handles, _ = scatter.legend_elements()
     unique_clusters = sorted(np.unique(clusters))
     labels = [cluster_names.get(c, f"Cluster {c}") for c in unique_clusters]
