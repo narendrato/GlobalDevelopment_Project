@@ -41,7 +41,7 @@ if uploaded_file is not None:
     df_processed = df_uploaded.drop('Country', axis=1, errors='ignore').copy()
 
     # =========================================================
-    # ✅ STEP 1: ALIGN COLUMNS FIRST (VERY IMPORTANT)
+    #  STEP 1: ALIGN COLUMNS FIRST (VERY IMPORTANT)
     # =========================================================
     original_feature_cols = columns
 
@@ -54,7 +54,7 @@ if uploaded_file is not None:
     df_processed = df_processed[original_feature_cols]
 
     # =========================================================
-    # ✅ STEP 2: CLEAN DATA (AFTER ALIGNMENT)
+    #  STEP 2: CLEAN DATA (AFTER ALIGNMENT)
     # =========================================================
     for col in df_processed.columns:
         temp = df_processed[col].astype(str)\
@@ -77,7 +77,7 @@ if uploaded_file is not None:
     st.write("Input shape:", df_processed.shape)
 
     # =========================================================
-    # ✅ STEP 3: SCALING
+    #  STEP 3: SCALING
     # =========================================================
     try:
         X_scaled = scaler.transform(df_processed)
@@ -86,7 +86,7 @@ if uploaded_file is not None:
         st.stop()
 
     # =========================================================
-    # ✅ STEP 4: HANDLE MISSING VALUES (SAFE)
+    #  STEP 4: HANDLE MISSING VALUES (SAFE)
     # =========================================================
     # NOTE: Ideally load saved imputer
     from sklearn.impute import SimpleImputer
@@ -94,7 +94,7 @@ if uploaded_file is not None:
     X_imputed = imputer.fit_transform(X_scaled)
 
     # =========================================================
-    # ✅ STEP 5: PCA TRANSFORMATION
+    #  STEP 5: PCA TRANSFORMATION
     # =========================================================
     try:
         X_pca = pca.transform(X_imputed)
@@ -103,7 +103,7 @@ if uploaded_file is not None:
         st.stop()
 
     # =========================================================
-    # ✅ STEP 6: PREDICTION
+    #  STEP 6: PREDICTION
     # =========================================================
     try:
         clusters = kmeans_model.predict(X_pca)
@@ -125,7 +125,7 @@ if uploaded_file is not None:
         df_uploaded['Country'] = country_names
 
     # =========================================================
-    # ✅ RESULTS
+    #  RESULTS
     # =========================================================
     st.write("### Cluster Results")
 
@@ -135,7 +135,7 @@ if uploaded_file is not None:
         st.dataframe(df_uploaded[['Cluster_Name']])
 
     # =========================================================
-    # ✅ VISUALIZATION
+    #  VISUALIZATION
     # =========================================================
     st.write("### Cluster Visualization")
 
