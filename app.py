@@ -7,19 +7,13 @@ import matplotlib.pyplot as plt
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(
-    page_title="Global Dev Clustering",
-    layout="wide",
-)
+st.set_page_config(page_title="Global Dev Clustering", layout="wide")
 
 # =========================
-# CUSTOM CSS (DARK UI)
+# CUSTOM DARK UI
 # =========================
 st.markdown("""
 <style>
-body {
-    background-color: #0f172a;
-}
 .main {
     background-color: #0f172a;
     color: white;
@@ -29,16 +23,13 @@ body {
 }
 .card {
     background-color: #1e293b;
-    padding: 20px;
+    padding: 18px;
     border-radius: 12px;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 .metric {
     font-size: 20px;
     font-weight: bold;
-}
-.sidebar .sidebar-content {
-    background-color: #020617;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -58,14 +49,14 @@ uploaded_file = st.sidebar.file_uploader("Upload dataset", type=["csv", "xlsx"])
 def load_models():
     scaler = joblib.load("scaler.joblib")
     pca = joblib.load("pca.joblib")
-    model = joblib.load("kmeans.joblib")
+    kmeans = joblib.load("kmeans.joblib")
     columns = joblib.load("columns.joblib")
-    return scaler, pca, model, columns
+    return scaler, pca, kmeans, columns
 
 try:
     scaler, pca, model, columns = load_models()
 except:
-    st.error("❌ Model files missing")
+    st.error("❌ Missing model files (.joblib)")
     st.stop()
 
 # =========================
@@ -73,35 +64,50 @@ except:
 # =========================
 if uploaded_file:
 
-    # Read file
+    # =========================
+    # READ FILE
+    # =========================
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
         df = pd.read_excel(uploaded_file)
 
-    country_col = df["Country"]
+    if "Country" not in df.columns:
+        st.error("Dataset must contain 'Country' column")
+        st.stop()
+
+    country_names = df["Country"]
 
     # =========================
-    # DATA CLEANING
+    # CLEAN DATA (NUMERIC SAFE)
     # =========================
-    df_clean = df.drop("Country", axis=1, errors="ignore")
+    df_clean = df.drop("Country", axis=1).copy()
 
+    # Align columns
     for col in columns:
         if col not in df_clean.columns:
             df_clean[col] = np.nan
 
     df_clean = df_clean[columns]
 
+    # Convert to numeric
     for col in df_clean.columns:
         temp = df_clean[col].astype(str)\
             .str.replace('$', '', regex=False)\
-            .str.replace(',', '', regex=False)
+            .str.replace(',', '', regex=False)\
+            .str.strip()
 
         if temp.str.contains('%').any():
-            df_clean[col] = pd.to_numeric(temp.str.replace('%', ''), errors='coerce') / 100
+            df_clean[col] = pd.to_numeric(
+                temp.str.replace('%', '', regex=False),
+                errors='coerce'
+            ) / 100
         else:
             df_clean[col] = pd.to_numeric(temp, errors='coerce')
 
+    # =========================
+    # TRANSFORM PIPELINE
+    # =========================
     from sklearn.impute import SimpleImputer
     imputer = SimpleImputer(strategy="mean")
 
@@ -111,6 +117,7 @@ if uploaded_file:
 
     clusters = model.predict(X_pca)
 
+    # Add cluster to df (for display)
     df["Cluster"] = clusters
 
     # =========================
@@ -120,51 +127,63 @@ if uploaded_file:
 
     selected_country = st.selectbox(
         "Select country to inspect:",
-        country_col
+        country_names
     )
 
-    row = df[df["Country"] == selected_country].iloc[0]
+    # Get row index safely
+    row_index = df[df["Country"] == selected_country].index[0]
+
+    # Clean numeric row
+    row_clean = df_clean.iloc[row_index]
 
     # =========================
-    # TOP CARD
+    # HEADER CARD
     # =========================
     st.markdown(f"""
     <div class="card">
         <h3>🌐 {selected_country}</h3>
-        <p>Cluster assigned: <b>{int(row['Cluster'])}</b></p>
+        <p>Cluster assigned: <b>{int(df.loc[row_index, 'Cluster'])}</b></p>
     </div>
     """, unsafe_allow_html=True)
 
     # =========================
     # METRICS GRID
     # =========================
+    st.markdown("### Key Indicators")
+
     cols = st.columns(4)
 
-    features = df_clean.columns
-
-    for i, col_name in enumerate(features[:8]):
+    for i, col_name in enumerate(df_clean.columns[:8]):
         with cols[i % 4]:
             st.markdown(f"""
             <div class="card">
                 <p>{col_name}</p>
-                <div class="metric">{row[col_name]}</div>
+                <div class="metric">{round(row_clean[col_name], 2)}</div>
             </div>
             """, unsafe_allow_html=True)
 
     # =========================
-    # CLUSTER MEAN COMPARISON
+    # CLUSTER MEAN COMPARISON (FIXED)
     # =========================
     st.markdown("## 📉 Country vs Cluster Mean")
 
-    cluster_id = row["Cluster"]
-    cluster_data = df[df["Cluster"] == cluster_id]
+    cluster_id = df.loc[row_index, "Cluster"]
 
-    cluster_mean = cluster_data[features].mean()
+    # Use CLEAN DATA (IMPORTANT FIX)
+    cluster_data = df_clean.copy()
+    cluster_data["Cluster"] = clusters
+
+    cluster_mean = cluster_data[cluster_data["Cluster"] == cluster_id].mean()
+
+    # =========================
+    # PLOT
+    # =========================
+    features_to_plot = df_clean.columns[:5]
 
     fig, ax = plt.subplots()
 
-    ax.bar(features[:5], row[features[:5]], label="Country")
-    ax.bar(features[:5], cluster_mean[:5], alpha=0.5, label="Cluster Mean")
+    ax.bar(features_to_plot, row_clean[features_to_plot], label="Country")
+    ax.bar(features_to_plot, cluster_mean[features_to_plot], alpha=0.5, label="Cluster Mean")
 
     plt.xticks(rotation=45)
     plt.legend()
